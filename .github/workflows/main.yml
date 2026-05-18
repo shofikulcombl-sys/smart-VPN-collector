@@ -2,8 +2,11 @@ name: Smart Auto VPN Update
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # প্রতি ১৫ মিনিট পর পর নিজে নিজেই ব্যাকএন্ডে রান হবে
-  workflow_dispatch:
+    - cron: '*/15 * * * *' # প্রতি ১৫ মিনিট পর পর অটো-রান
+  workflow_dispatch: # ম্যানুয়ালি রান করার বোতাম
+
+permissions:
+  contents: write # গিটহাবকে ফাইলে ডেটা রাইট করার সরাসরি পারমিশন দেওয়া হলো
 
 jobs:
   build:
@@ -11,6 +14,8 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v3
+      with:
+        persist-credentials: true
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -20,10 +25,11 @@ jobs:
     - name: Run Premium Scraper and Ping Tester
       run: python main.py
 
-    - name: Commit and Push changes
+    - name: Force Commit and Push changes
       run: |
-        git config --global user.name "GitHub Action"
-        git config --global user.email "action@github.com"
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add subscription.txt
-        git commit -m "Ultra-Deep nodes updated every 15 mins" || exit 0
-        git push
+        # ফাইল যদি পরিবর্তন হয় তবেই জোরপূর্বক পুশ করবে, কোনো এরর ছাড়াই
+        git commit -m "Ultra-Deep nodes updated via Automation" || echo "No changes to commit"
+        git push origin main
