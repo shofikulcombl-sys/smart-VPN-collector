@@ -2,8 +2,8 @@ name: Smart Auto VPN Update
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # এটি প্রতি ২ ঘণ্টা পর পর নিজে নিজেই ব্যাকএন্ডে রান হবে
-  workflow_dispatch: # এর ফলে আপনি নিজেও যেকোনো সময় ম্যানুয়ালি রান করতে পারবেন
+    - cron: '*/15 * * * *' # প্রতি ১৫ মিনিট পর পর নিজে নিজেই ব্যাকএন্ডে রান হবে
+  workflow_dispatch:
 
 jobs:
   build:
@@ -25,5 +25,5 @@ jobs:
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         git add subscription.txt
-        git commit -m "Premium Nodes auto-updated with real ping and country name" || exit 0
+        git commit -m "Ultra-Deep nodes updated every 15 mins" || exit 0
         git push
