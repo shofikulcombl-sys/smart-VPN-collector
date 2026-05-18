@@ -7,22 +7,45 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def discover_new_sources():
-    """১. গ্লোবাল মেগা সোর্স: ইন্টারনেট জগৎ থেকে ১০০% সচল ও ওপেন সোর্স ভিপিএন লিংক"""
-    # গিটহাব সার্চ API বাদ দিয়ে সরাসরি গ্লোবাল র-লিংক ব্যবহার (ফেইল-সেফ মেকানিজম)
-    discovered_urls = [
+    """১. আপনার আগের সেই আসল আনলিমিটেড গ্লোবাল ইন্টারনেট সোর্স ক্রলার"""
+    discovered_urls = []
+    search_queries = [
+        "https://api.github.com/search/repositories?q=v2ray+config+forks:>5&sort=updated",
+        "https://api.github.com/search/repositories?q=clash+vless+stars:>5&sort=updated",
+        "https://api.github.com/search/code?q=vmess://+path:README.md&sort=indexed"
+    ]
+    
+    # ফায়ারওয়াল বাইপাস ব্রাউজার হেডার
+    browser_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*'
+    }
+    
+    for url in search_queries:
+        try:
+            req = urllib.request.Request(url, headers=browser_headers)
+            with urllib.request.urlopen(req, timeout=8) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                if 'items' in data:
+                    for item in data['items']:
+                        if 'full_name' in item:
+                            discovered_urls.append(f"https://raw.githubusercontent.com/{item['full_name']}/main/README.md")
+                        elif 'repository' in item:
+                            discovered_urls.append(f"https://raw.githubusercontent.com/{item['repository']['full_name']}/main/README.md")
+        except:
+            continue
+    
+    # আপনার মেগা ব্যাকআপ সোর্স লিস্ট
+    discovered_urls.extend([
         "https://raw.githubusercontent.com/barry-far/V2ray-config/main/All_Config_base64_Sub.txt",
         "https://raw.githubusercontent.com/MatinGhanbari/v2ray-configs/main/subscriptions/v2ray/all_sub.txt",
         "https://raw.githubusercontent.com/anaer/Sub/master/v2ray.txt",
-        "https://raw.githubusercontent.com/v2rayng-config/v2rayng-config/main/v2rayNG_config.txt",
-        "https://raw.githubusercontent.com/freev2ray/v2ray/master/v2ray",
-        "https://raw.githubusercontent.com/vless-v2ray/vless/main/sub.txt",
-        "https://raw.githubusercontent.com/IranianPremium/v2ray-configs/main/All_Configs_Sub.txt",
-        "https://raw.githubusercontent.com/BardiaFA/VPN-Configs/main/All_Configs_Sub.txt"
-    ]
+        "https://raw.githubusercontent.com/v2rayng-config/v2rayng-config/main/v2rayNG_config.txt"
+    ])
     return list(set(discovered_urls))
 
 def precise_latency_test(ip_or_domain, port):
-    """২. নিখুঁত ৩-লেয়ার চেইন ল্যাটেন্সি টেস্ট"""
+    """②. ৩-লেয়ার চেইন ল্যাটেন্সি টেস্ট মেকানিজম"""
     try:
         port = int(port)
         start_time = time.perf_counter()
@@ -40,30 +63,18 @@ def precise_latency_test(ip_or_domain, port):
     except:
         return None, "FAILED"
 
-def is_valid_config(config):
-    """৩. সেফ ফিল্টার: নিশ্চিত ভুয়া ডেমো নোড বাদ দেওয়া"""
-    config_lower = config.lower()
-    fake_keywords = ['uuid@', 'your-server', 'xxxxx-xxxx', 'host:port']
-    for word in fake_keywords:
-        if word in config_lower:
-            return False
-    if "://" not in config_lower:
-        return False
-    return True
-
 def process_single_node(config):
-    """४. নোড অ্যানালাইসিস এবং ভিপিএন অ্যাপ ফ্রেন্ডলি ক্লিন ফরম্যাটিং"""
+    """৩. নোড প্রসেসিং এবং শিথিল ফরম্যাটে নাম সাজানো"""
+    # পুরোনো হ্যাশট্যাগ থাকলে পরিষ্কার করা
     if "#" in config:
         config, _ = config.split("#", 1)
-        
-    if not is_valid_config(config):
-        return None
         
     protocol_match = re.match(r'^([a-z0-9]+)://', config)
     protocol = protocol_match.group(1) if protocol_match else "vpn"
     server_match = re.search(r'@([^:]+):([0-9]+)', config)
     
     if not server_match:
+        # ফিল্টারিং শিথিল: ম্যাচ না করলেও ফোন সকেটের জন্য পাস করে দেওয়া হবে
         return f"{config}#PHONE-SOCKET-RAW"
 
     ip_or_domain = server_match.group(1)
@@ -71,6 +82,7 @@ def process_single_node(config):
     
     latency, method_used = precise_latency_test(ip_or_domain, port)
     
+    # দেশ নির্ধারণ
     code = 'UN'
     try:
         api_url = f"http://ip-api.com/json/{ip_or_domain}?fields=status,countryCode"
@@ -82,12 +94,14 @@ def process_single_node(config):
     except:
         pass
 
+    # কাজের ধরন নির্ধারণ
     benefit = "MULTI"
     if code in ['SG', 'IN', 'HK', 'MY', 'TH', 'KR', 'TW']:
         benefit = "GAMING"
     elif code in ['US', 'GB', 'DE', 'JP', 'CA', 'FR', 'NL']:
         benefit = "STREAM"
 
+    # স্পেস ও স্পেশাল ক্যারেক্টার ছাড়া শিথিল ও স্ট্যান্ডার্ড নাম (v2rayNG ফ্রেন্ডলি)
     if method_used == "FAILED":
         display_name = f"PHONE-TEST-{code}-{benefit}-{protocol.upper()}"
     else:
@@ -96,7 +110,7 @@ def process_single_node(config):
     return f"{config}#{display_name}"
 
 def smart_crawler():
-    print("🔍 মেগা গ্লোবাল ইন্টারনেট ক্রলিং শুরু হচ্ছে...")
+    print("🔍 গ্লোবাল ইন্টারনেট জগৎ থেকে আনলিমিটেড নোড অনুসন্ধান শুরু হচ্ছে...")
     all_sources = discover_new_sources()
     collected_configs = []
     vpn_pattern = re.compile(r'((?:vmess|vless|trojan|ss)://[^\s"<>\'\`]+)')
@@ -117,10 +131,10 @@ def smart_crawler():
         except:
             continue
 
-    print(f"✅ সোর্স থেকে মোট {len(collected_configs)} টি র-কোড পাওয়া গেছে।")
+    print(f"✅ মোট {len(collected_configs)} টি নোড সংগৃহীত হয়েছে।")
 
     final_processed_configs = []
-    # টপ ২৫০টি নোড মাল্টি-থ্রেড প্রসেস করা হবে
+    # ফিল্টারিং শিথিল করে টপ ২৫০টি নোড মাল্টি-থ্রেড প্রসেস করা হবে
     top_nodes_to_test = collected_configs[:250] 
     
     with ThreadPoolExecutor(max_workers=25) as executor:
@@ -133,7 +147,7 @@ def smart_crawler():
             except:
                 pass
 
-    # চূড়ান্ত ব্যাকআপ মেকানিজম
+    # ব্যাকআপ সুরক্ষাকবচ
     if not final_processed_configs and collected_configs:
         final_processed_configs = collected_configs[:100]
 
@@ -143,7 +157,7 @@ def smart_crawler():
 
     with open("subscription.txt", "w") as f:
         f.write(b64_output)
-    print(f"📁 সফলভাবে {len(final_processed_configs)} টি নোড সেভ করা হয়েছে।")
+    print(f"📁 সফলভাবে {len(final_processed_configs)} টি নোড নিয়ে subscription.txt ফাইল সচল করা হয়েছে।")
 
 if __name__ == "__main__":
     smart_crawler()
