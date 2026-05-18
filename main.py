@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def discover_new_sources():
-    """১. সারা ইন্টারনেট থেকে নতুন ভিপিএন সোর্স খোঁজা"""
+    """১. গভীর স্ক্যানিং: সারা ইন্টারনেট থেকে মেগা সোর্স খোঁজা"""
     discovered_urls = []
     search_queries = [
         "https://api.github.com/search/repositories?q=v2ray+config+stars:>5+updated:>2026-01-01&sort=updated&per_page=50",
@@ -37,7 +37,7 @@ def discover_new_sources():
     return list(set(discovered_urls))
 
 def precise_latency_test(ip_or_domain, port):
-    """২. ৩-লেয়ার চেইন ল্যাটেন্সি টেস্ট মেকানিজম"""
+    """২. নিখুঁত ৩-লেয়ার চেইন ল্যাটেন্সি টেস্ট মেকানিজম"""
     try:
         port = int(port)
         start_time = time.perf_counter()
@@ -55,66 +55,55 @@ def precise_latency_test(ip_or_domain, port):
     except:
         return None, "FAILED"
 
-def clean_and_format_config(config, flag, code, city, latency, method, protocol, benefit):
-    """৩. ভ ভিপিএন নোডের ভেতরের নাম নিখুঁত প্রফেশনাল ফরম্যাটে সাজানো"""
-    # পুরোনো বা অস্পষ্ট নাম মুছে ফেলার জন্য লিঙ্কের পেছনের অংশ পরিষ্কার করা
+def process_single_node(config):
+    """৩. নোড অ্যানালাইসিস এবং ভিপিএন অ্যাপ ফ্রেন্ডলি ক্লিন ফরম্যাটিং"""
+    # আগের সব হিজিবিজি নাম বা হ্যাশট্যাগ পরিষ্কার করা
     if "#" in config:
         config, _ = config.split("#", 1)
         
-    # সুন্দর ও স্পষ্ট নাম তৈরি
-    if method == "FAILED":
-        display_name = f"{flag} [{code}-{city}] 📱 PHONE-TEST 🔸 {benefit}"
-    else:
-        speed_icon = "🟢 ULTRA" if latency < 150 else ("🟡 MED" if latency < 250 else "🔴 SLOW")
-        display_name = f"{flag} [{code}-{city}] ⚡ {latency}ms ({speed_icon}) 🔸 {benefit} [{protocol.upper()}]"
-        
-    # URL Encoding-এর জন্য স্পেস বা ক্যারেক্টার ক্লিন করা
-    safe_name = urllib.parse.quote(display_name)
-    return f"{config}#{safe_name}"
-
-def process_single_node(config):
-    """প্রতিটি নোড অ্যানালাইসিস করে দেশ ও কাজ স্পষ্ট করার লজিক"""
-    if "#" in config:
-        base_part, _ = config.split("#", 1)
-    else:
-        base_part = config
-        
-    protocol_match = re.match(r'^([a-z0-9]+)://', base_part)
+    protocol_match = re.match(r'^([a-z0-9]+)://', config)
     protocol = protocol_match.group(1) if protocol_match else "vpn"
-    server_match = re.search(r'@([^:]+):([0-9]+)', base_part)
+    server_match = re.search(r'@([^:]+):([0-9]+)', config)
     
     if not server_match:
-        return f"{base_part}#🌐 [RAW-NODE] 🔸 ⚡ MULTI-PURPOSE"
+        # RAW নোডের জন্য ক্লিন নাম
+        return f"{config}#PHONE-SOCKET-RAW"
 
     ip_or_domain = server_match.group(1)
     port = server_match.group(2)
     
+    # ল্যাটেন্সি টেস্ট
     latency, method_used = precise_latency_test(ip_or_domain, port)
     
-    # IP থেকে দেশের কোড বের করা
-    code, city, flag = 'UN', 'Anycast', '🌐'
+    # দেশ নির্ধারণ
+    code = 'UN'
     try:
-        api_url = f"http://ip-api.com/json/{ip_or_domain}?fields=status,countryCode,city"
+        api_url = f"http://ip-api.com/json/{ip_or_domain}?fields=status,countryCode"
         req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=1.5) as response:
+        with urllib.request.urlopen(req, timeout=1.2) as response:
             ip_data = json.loads(response.read().decode('utf-8'))
             if ip_data.get('status') == 'success':
                 code = ip_data.get('countryCode', 'UN').upper()
-                city = ip_data.get('city', 'Anycast')
-                flag = "".join(chr(127397 + ord(c)) for c in code) if code != 'UN' else '🌐'
     except:
         pass
 
-    # কাজের ধরন ক্যাটাগরাইজ করা
-    benefit = "⚡ MULTI"
+    # কাজের ধরন নির্ধারণ
+    benefit = "MULTI"
     if code in ['SG', 'IN', 'HK', 'MY', 'TH', 'KR', 'TW']:
-        benefit = "🎮 GAMING"
+        benefit = "GAMING"
     elif code in ['US', 'GB', 'DE', 'JP', 'CA', 'FR', 'NL']:
-        benefit = "🎬 STREAM"
+        benefit = "STREAM"
 
-    return clean_and_format_config(base_part, flag, code, city, latency, method_used, protocol, benefit)
+    # অ্যাপের জন্য একদম ক্লিন স্ট্যান্ডার্ড নাম তৈরি (কোনো স্পেস বা জটিল ইমোজি ছাড়া)
+    if method_used == "FAILED":
+        display_name = f"PHONE-TEST-{code}-{benefit}-{protocol.upper()}"
+    else:
+        display_name = f"{code}-{latency}ms-{benefit}-{protocol.upper()}"
+
+    return f"{config}#{display_name}"
 
 def smart_crawler():
+    print("🔍 মেগা ইন্টারনেট ক্রলিং শুরু হচ্ছে...")
     all_sources = discover_new_sources()
     collected_configs = []
     vpn_pattern = re.compile(r'((?:vmess|vless|trojan|ss)://[^\s"<>\'\`]+)')
@@ -135,8 +124,11 @@ def smart_crawler():
         except:
             continue
 
+    print(f"✅ মোট {len(collected_configs)} টি নোড পাওয়া গেছে। টেস্টিং শুরু হচ্ছে...")
+
     final_processed_configs = []
-    top_nodes_to_test = collected_configs[:250] 
+    # টপ ২০০টি নোড মাল্টি-থ্রেডিং দিয়ে ফাস্ট টেস্ট করা হবে
+    top_nodes_to_test = collected_configs[:200] 
     
     with ThreadPoolExecutor(max_workers=25) as executor:
         future_to_node = {executor.submit(process_single_node, node): node for node in top_nodes_to_test}
@@ -151,12 +143,13 @@ def smart_crawler():
     if not final_processed_configs and collected_configs:
         final_processed_configs = collected_configs[:100]
 
+    # ডাটা বেস৬৪ এনকোড করা
     output_text = "\n".join(final_processed_configs)
     b64_output = base64.b64encode(output_text.encode('utf-8')).decode('utf-8')
 
     with open("subscription.txt", "w") as f:
         f.write(b64_output)
-    print("📁 সফলভাবে ক্লিনিং ও প্রফেশনাল ফরমেটে ফাইল আপডেট করা হয়েছে।")
+    print("📁 সফলভাবে subscription.txt ফাইল সম্পূর্ণ ফিক্স করা হয়েছে।")
 
 if __name__ == "__main__":
     smart_crawler()
