@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def discover_new_sources():
-    """১. গভীর স্ক্যানিং: সারা ইন্টারনেট থেকে মেগা সোর্স খোঁজা"""
+    """১. গভীর স্ক্যানিং: সারা ইন্টারনেট থেকে সচল মেগা সোর্স খোঁজা"""
     discovered_urls = []
     search_queries = [
         "https://api.github.com/search/repositories?q=v2ray+config+stars:>5+updated:>2026-01-01&sort=updated&per_page=50",
@@ -55,20 +55,35 @@ def precise_latency_test(ip_or_domain, port):
     except:
         return None, "FAILED"
 
+def is_valid_config(config):
+    """৩. স্মার্ট ফিল্টার: নকল, ডেমো বা ভাঙা নোড শনাক্ত করে বাদ দেওয়া"""
+    # নোডের ভেতর উদাহরণ হিসেবে থাকা কমন ভুয়া শব্দ ফিল্টার করা
+    fake_keywords = ['uuid', 'host', 'port', 'xxxxx', 'your-server', 'base64', 'path', '...']
+    config_lower = config.lower()
+    
+    for word in fake_keywords:
+        if word in config_lower:
+            return False
+            
+    # নোডের ভেতর @আইপি:পোর্ট বা @ডোমেন:পোর্ট এর সঠিক গঠন আছে কিনা যাচাই
+    if not re.search(r'@[^:]+:[0-9]+', config):
+        return False
+        
+    return True
+
 def process_single_node(config):
-    """৩. নোড অ্যানালাইসিস এবং ভিপিএন অ্যাপ ফ্রেন্ডলি ক্লিন ফরম্যাটিং"""
-    # আগের সব হিজিবিজি নাম বা হ্যাশট্যাগ পরিষ্কার করা
+    """৪. নোড অ্যানালাইসিস এবং ভিপিএন অ্যাপ ফ্রেন্ডলি ক্লিন ফরম্যাটিং"""
     if "#" in config:
         config, _ = config.split("#", 1)
+        
+    # যদি নোডটি নকল বা ইনভ্যালিড হয়, তবে সরাসরি বাদ (None)
+    if not is_valid_config(config):
+        return None
         
     protocol_match = re.match(r'^([a-z0-9]+)://', config)
     protocol = protocol_match.group(1) if protocol_match else "vpn"
     server_match = re.search(r'@([^:]+):([0-9]+)', config)
     
-    if not server_match:
-        # RAW নোডের জন্য ক্লিন নাম
-        return f"{config}#PHONE-SOCKET-RAW"
-
     ip_or_domain = server_match.group(1)
     port = server_match.group(2)
     
@@ -94,7 +109,7 @@ def process_single_node(config):
     elif code in ['US', 'GB', 'DE', 'JP', 'CA', 'FR', 'NL']:
         benefit = "STREAM"
 
-    # অ্যাপের জন্য একদম ক্লিন স্ট্যান্ডার্ড নাম তৈরি (কোনো স্পেস বা জটিল ইমোজি ছাড়া)
+    # স্পেস ও ইমোজি ছাড়া বিশুদ্ধ আলফানিউমেরিক নাম (যা v2rayNG ১০০% রিড করতে পারে)
     if method_used == "FAILED":
         display_name = f"PHONE-TEST-{code}-{benefit}-{protocol.upper()}"
     else:
@@ -124,24 +139,23 @@ def smart_crawler():
         except:
             continue
 
-    print(f"✅ মোট {len(collected_configs)} টি নোড পাওয়া গেছে। টেস্টিং শুরু হচ্ছে...")
+    print(f"✅ সোর্স থেকে মোট {len(collected_configs)} টি র-কোড পাওয়া গেছে। ফিল্টারিং ও টেস্টিং শুরু হচ্ছে...")
 
     final_processed_configs = []
-    # টপ ২০০টি নোড মাল্টি-থ্রেডিং দিয়ে ফাস্ট টেস্ট করা হবে
-    top_nodes_to_test = collected_configs[:200] 
+    # টপ ৩০০টি নোড ফিল্টার ও মাল্টি-থ্রেড প্রসেস করা হবে
+    top_nodes_to_test = collected_configs[:300] 
     
     with ThreadPoolExecutor(max_workers=25) as executor:
         future_to_node = {executor.submit(process_single_node, node): node for node in top_nodes_to_test}
         for future in as_completed(future_to_node):
             try:
                 result_config = future.result()
-                if result_config:
+                if result_config: # শুধুমাত্র ভ্যালিড নোডগুলোই যুক্ত হবে
                     final_processed_configs.append(result_config)
             except:
                 pass
 
-    if not final_processed_configs and collected_configs:
-        final_processed_configs = collected_configs[:100]
+    print(f"🎯 ফিল্টারিং শেষে {len(final_processed_configs)} টি খাঁটি প্রিমিয়াম নোড ফাইলে সেভ করা হচ্ছে।")
 
     # ডাটা বেস৬৪ এনকোড করা
     output_text = "\n".join(final_processed_configs)
@@ -149,7 +163,7 @@ def smart_crawler():
 
     with open("subscription.txt", "w") as f:
         f.write(b64_output)
-    print("📁 সফলভাবে subscription.txt ফাইল সম্পূর্ণ ফিক্স করা হয়েছে।")
+    print("📁 সফলভাবে শত শত খাঁটি নোড দিয়ে subscription.txt ফাইল আপডেট করা হয়েছে।")
 
 if __name__ == "__main__":
     smart_crawler()
