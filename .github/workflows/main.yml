@@ -2,10 +2,10 @@ name: Ultimate Auto VPN System
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # গিটহাবের ইন্টারনাল অটো ক্রোন সাইকেল
+    - cron: '*/15 * * * *' # প্রতি ১৫ মিনিট পর পর অটো রান
   push:
     branches:
-      - main # কোড আপডেট বা পুশ হওয়া মাত্রই ইনস্ট্যান্ট অ্যাকশন রান হবে
+      - main # কোড পরিবর্তন হলে সাথে সাথে রান
   workflow_dispatch:
 
 permissions:
@@ -17,6 +17,8 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # গিটহাবের পুরো হিস্ট্রি টানবে যাতে কনফ্লিক্ট না হয়
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -30,6 +32,12 @@ jobs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # দূরবর্তী কোনো পরিবর্তন থাকলে তা প্রথমে লোকাল ফাইলের সাথে জোড়া দেবে
+        git pull origin main --rebase || echo "No remote changes to rebase"
+        
         git add subscription.txt
         git commit -m "Professional Ultimate VPN Update [Multi-Tasking Engine]" || echo "No changes to commit"
-        git push origin main
+        
+        # ⚡ গিটহাবের সকল বাধা পার করে জোরপূর্বক (Force) ফাইল আপডেট করার আল্টিমেট কমান্ড
+        git push origin main --force
